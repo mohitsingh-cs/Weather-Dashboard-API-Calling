@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Weather Dashboard</title>
+
+  <!-- Simple styling: modern dark UI -->
+  <style>
+    :root { --bg:#0b1220; --panel:#0f172a; --muted:#9aa4b2; --line:#243049; }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      background:var(--bg); color:#e6e9f0;
+    }
+    .wrap{max-width:840px;margin:36px auto;padding:0 16px}
+    input,button{border-radius:10px;border:0}
+    button{background:#3b82f6;color:white;cursor:pointer}
+    .card,.tile{border:1px solid var(--line);border-radius:12px;padding:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Weather Dashboard</h1>
+
+    <!-- Search form -->
+    <form id="f" autocomplete="off">
+      <input id="q" placeholder="Search city e.g. Dublin" required />
+      <button type="submit">Get Weather</button>
+    </form>
+
+    <!-- These containers get filled dynamically with JS -->
+    <div id="msg"></div>
+    <div id="current"></div>
+    <div id="forecast" class="grid"></div>
+
+    <p class="muted" style="margin-top:16px">
+      Data by <a href="https://openweathermap.org/api" target="_blank" rel="noopener">OpenWeatherMap</a> • Units: metric (°C)
+    </p>
+  </div>
+
+  <script>
+    // My personal API key from OpenWeatherMap
+    const API_KEY = "07bcb98fa78ec892f2ba65ecc429e798"; // Grabs API info from weather dahsboard
+
+    // Get references to HTML elements
+    const elForm = document.getElementById('f');
+    const elQ = document.getElementById('q');
+    const elMsg = document.getElementById('msg');
+    const elCurrent = document.getElementById('current');
+    const elForecast = document.getElementById('forecast');
+
+    // Helper: shows an error message
+    function showError(text){ elMsg.innerHTML = `<div class="error">${text}</div>`; }
+
+    // Helper: clears all UI containers
+    function clearUI(){ elMsg.innerHTML=''; elCurrent.innerHTML=''; elForecast.innerHTML=''; }
+
+    // Main function: fetches and displays weather data
+    async function getWeather(city){
+      clearUI();
+      if(!city) return showError("Enter a city name.");
+      const base = "https://api.openweathermap.org/data/2.5";
+      try{
+        // 1. Fetch current weather data
+        const r1 = await fetch(`${base}/weather?q=${encodeURIComponent(city)}&appid=${API_KEY}&units=metric`);
+        if(!r1.ok) throw new Error("City not found");
+        const w = await r1.json();
+
+        // 2. Fetch 5-day forecast data
+        const r2 = await fetch(`${base}/forecast?q=${encodeURIComponent(city)}&appid=${API_KEY}&units=metric`);
+        if(!r2.ok) throw new Error("Forecast unavailable");
+        const f = await r2.json();
+
+        // 3. Update current weather section
+        const icon = w.weather?.[0]?.icon ?? "01d";
+        const desc = w.weather?.[0]?.description ?? "—";
+        elCurrent.innerHTML = `
+          <div class="card">
+            <div class="row">
+              <img alt="" src="https://openweathermap.org/img/wn/${icon}@2x.png" width="80" height="80">
+              <div>
+                <div class="temp">${Math.round(w.main.temp)}°C</div>
+                <div>${w.name}, ${w.sys.country} • ${desc}</div>
+                <div class="muted">Feels like ${Math.round(w.main.feels_like)}°C 
+                    • Humidity ${w.main.humidity}% • Wind ${Math.round(w.wind.speed)} m/s
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // 4. Update forecast section (next 5 days)
+        const midday = f.list.filter(x => x.dt_txt.includes("12:00:00")).slice(0,5);
+        elForecast.innerHTML = midday.map(x=>{
+          const d = new Date(x.dt_txt.replace(" ","T"));
+          const day = d.toLocaleDateString(undefined,{weekday:'short', day:'numeric'});
+          const ic = x.weather?.[0]?.icon ?? "01d";
+          const de = x.weather?.[0]?.description ?? "—";
+          return `
+            <div class="tile">
+              <div class="muted">${day}</div>
+              <img alt="" src="https://openweathermap.org/img/wn/${ic}.png" width="50" height="50">
+              <div><strong>${Math.round(x.main.temp)}°C</strong></div>
+              <div class="muted" style="text-transform:capitalize">${de}</div>
+            </div>
+          `;
+        }).join("");
+
+      }catch(e){
+        showError(e.message || "Something went wrong");
+      }
+    }
+
+     // When user submits the form -> call getWeather
+    elForm.addEventListener('submit', (ev)=>{
+      ev.preventDefault();
+      getWeather(elQ.value.trim());
+    });
+
+    // Default view loads Dublin
+    getWeather("Dublin");
+  </script>
+</body>
+</html>
